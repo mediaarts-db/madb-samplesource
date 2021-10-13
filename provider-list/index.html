@@ -1,0 +1,279 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>マンガの連携機関一覧表示 - MADB Lab SPARQLエンドポイント活用例</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk2vvoC2f3B09zVXn8CA5QIVfZOJ3BCsw2P0p/We" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+    <style>
+        .table th {
+            font-size: .85em;
+        }
+
+        .table td.provider {
+            text-align: center;
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-U1DAWAznBHeqEIlVSCgzq+c9gqGAJn5c/t99JyeKa9xxaYpSvHU5awsuZVVFIhvj"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@0.21.1/dist/axios.min.js"
+            integrity="sha256-JLmknTdUZeZZ267LP9qB+/DT7tvxOOKctSKeUC2KT6E=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script>
+</head>
+<body>
+<div class="container" id="app">
+    <h1>マンガの連携機関一覧表示 <small>- MADB Lab SPARQLエンドポイント活用例</small></h1>
+    <p>
+        マンガ単行本シリーズまたはマンガ雑誌のメディア芸術データベースIDを入力してください。(IDは <code>C + 数字</code> の形式です)<br>
+        「表示」をクリックすると、資料を所蔵している連携機関を一覧表示します。
+    </p>
+
+    <form class="row" @submit.prevent>
+        <div class="col-sm-3">
+            <input type="text" class="form-control" id="collection-id" placeholder="C[0-9]+"
+                   v-model="collectionId" @keydown.enter="query">
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-primary" @click="query">
+                表示
+            </button>
+        </div>
+    </form>
+
+    <hr>
+
+    <div v-if="collectionLabel !== null">
+        <h2>
+            <a target="_blank" :href="collectionUrl">{{ collectionLabel }}</a>
+            <small class="text-muted">{{ collectionGenre }}</small>
+        </h2>
+
+        <div class="float-end">
+            <button type="button" class="btn btn-sm btn-secondary" @click="downloadCsv"
+                    v-show="items.length > 0">
+                CSVでダウンロード
+            </button>
+        </div>
+
+        <table class="table table-sm">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>ラベル</th>
+                <th>ISBN</th>
+                <th>国立国会図書館</th>
+                <th>明治大学米沢嘉博記念図書館</th>
+                <th>京都国際マンガミュージアム</th>
+                <th>大阪府立中央図書館国際児童文学館</th>
+                <th>熊本県菊陽町図書館</th>
+                <th>北九州市漫画ミュージアム</th>
+                <th>プランゲ文庫</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="item in items">
+                <td><a :href="item.item.value" target="_blank">{{ item.itemId.value }}</a></td>
+                <td>{{ item.label.value }}</td>
+                <td>{{ item.isbn ? item.isbn.value : '' }}</td>
+                <td class="provider"><i :class="getIconClass(item.国立国会図書館.value)"></i></td>
+                <td class="provider"><i :class="getIconClass(item.明治大学米沢嘉博記念図書館.value)"></i></td>
+                <td class="provider"><i :class="getIconClass(item.京都国際マンガミュージアム.value)"></i></td>
+                <td class="provider"><i :class="getIconClass(item.大阪府立中央図書館国際児童文学館.value)"></i></td>
+                <td class="provider"><i :class="getIconClass(item.熊本県菊陽町図書館.value)"></i></td>
+                <td class="provider"><i :class="getIconClass(item.北九州市漫画ミュージアム.value)"></i></td>
+                <td class="provider"><i :class="getIconClass(item.プランゲ文庫.value)"></i></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <div v-else>
+        見つかりませんでした。
+    </div>
+</div>
+<script>
+  const ENDPOINT_URL = 'https://mediag.bunka.go.jp/sparql';
+
+  function buildQueryBody(query) {
+    const params = new URLSearchParams();
+    params.append('query', query)
+    return params;
+  }
+
+  var app = new Vue({
+    el: '#app',
+    data: {
+      collectionId: 'C257102',
+      collectionLabel: '',
+      collectionGenre: '',
+      items: [],
+    },
+    computed: {
+      collectionUrl: function () {
+        return 'https://mediaarts-db.bunka.go.jp/id/' + this.collectionId;
+      }
+    },
+    methods: {
+      query: function () {
+        if (!this.collectionId || !this.collectionId.match(/^C[0-9]+$/)) {
+          alert('IDを正しく入力してください')
+          return;
+        }
+        this.collectionLabel = '';
+        this.collectionGenre = '';
+        this.items = [];
+
+        // Collectionを取得
+        this.queryCollection(this.collectionId);
+
+        // Itemを取得
+        const query = `
+            PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+            PREFIX schema: <https://schema.org/>
+            PREFIX ma:     <https://mediaarts-db.bunka.go.jp/data/property/>
+            PREFIX class:  <https://mediaarts-db.bunka.go.jp/data/class/>
+            SELECT
+              ?item ?itemId ?label ?isbn
+              ?国立国会図書館 ?明治大学米沢嘉博記念図書館 ?京都国際マンガミュージアム ?大阪府立中央図書館国際児童文学館 ?熊本県菊陽町図書館 ?北九州市漫画ミュージアム ?プランゲ文庫
+              (GROUP_CONCAT(DISTINCT ?国立国会図書館_id ; separator="|") AS ?国立国会図書館_ids)
+              (GROUP_CONCAT(DISTINCT ?明治大学米沢嘉博記念図書館_id ; separator="|") AS ?明治大学米沢嘉博記念図書館_ids)
+              (GROUP_CONCAT(DISTINCT ?京都国際マンガミュージアム_id ; separator="|") AS ?京都国際マンガミュージアム_ids)
+              (GROUP_CONCAT(DISTINCT ?大阪府立中央図書館国際児童文学館_id ; separator="|") AS ?大阪府立中央図書館国際児童文学館_ids)
+              (GROUP_CONCAT(DISTINCT ?熊本県菊陽町図書館_id ; separator="|") AS ?熊本県菊陽町図書館_ids)
+              (GROUP_CONCAT(DISTINCT ?北九州市漫画ミュージアム_id ; separator="|") AS ?北九州市漫画ミュージアム_ids)
+              (GROUP_CONCAT(DISTINCT ?プランゲ文庫_id ; separator="|") AS ?プランゲ文庫_ids)
+            WHERE {
+              ?col a class:Collection ;
+                   schema:identifier "${this.collectionId}" .
+              ?item a class:Item ;
+                    schema:genre ?genre ;
+                    rdfs:label ?label ;
+                    schema:identifier ?itemId ;
+                    schema:isPartOf ?col .
+              VALUES ?genre {"単行本" "雑誌巻号" "マンガその他"}
+
+              OPTIONAL { ?item schema:datePublished ?datePublished }
+              OPTIONAL { ?item schema:isbn ?isbn }
+              OPTIONAL { ?item schema:provider [ ma:ownerIdentifier "2" ; ma:entryIdentifier ?国立国会図書館_id ] }
+              OPTIONAL { ?item schema:provider [ ma:ownerIdentifier "4" ; ma:entryIdentifier ?明治大学米沢嘉博記念図書館_id ] }
+              OPTIONAL { ?item schema:provider [ ma:ownerIdentifier "5" ; ma:entryIdentifier ?京都国際マンガミュージアム_id ] }
+              OPTIONAL { ?item schema:provider [ ma:ownerIdentifier "6" ; ma:entryIdentifier ?大阪府立中央図書館国際児童文学館_id ] }
+              OPTIONAL { ?item schema:provider [ ma:ownerIdentifier "7" ; ma:entryIdentifier ?熊本県菊陽町図書館_id ] }
+              OPTIONAL { ?item schema:provider [ ma:ownerIdentifier "8" ; ma:entryIdentifier ?北九州市漫画ミュージアム_id ] }
+              OPTIONAL { ?item schema:provider [ ma:ownerIdentifier "13" ; ma:entryIdentifier ?プランゲ文庫_id ] }
+
+              BIND (IF(EXISTS { ?item schema:provider [ ma:ownerIdentifier "2" ] }, true, false) AS ?国立国会図書館)
+              BIND (IF(EXISTS { ?item schema:provider [ ma:ownerIdentifier "4" ] }, true, false) AS ?明治大学米沢嘉博記念図書館)
+              BIND (IF(EXISTS { ?item schema:provider [ ma:ownerIdentifier "5" ] }, true, false) AS ?京都国際マンガミュージアム)
+              BIND (IF(EXISTS { ?item schema:provider [ ma:ownerIdentifier "6" ] }, true, false) AS ?大阪府立中央図書館国際児童文学館)
+              BIND (IF(EXISTS { ?item schema:provider [ ma:ownerIdentifier "7" ] }, true, false) AS ?熊本県菊陽町図書館)
+              BIND (IF(EXISTS { ?item schema:provider [ ma:ownerIdentifier "8" ] }, true, false) AS ?北九州市漫画ミュージアム)
+              BIND (IF(EXISTS { ?item schema:provider [ ma:ownerIdentifier "13" ] }, true, false) AS ?プランゲ文庫)
+            }
+            GROUP BY
+              ?item ?itemId ?label ?datePublished ?isbn
+              ?国立国会図書館 ?明治大学米沢嘉博記念図書館 ?京都国際マンガミュージアム ?大阪府立中央図書館国際児童文学館 ?熊本県菊陽町図書館 ?北九州市漫画ミュージアム ?プランゲ文庫
+            ORDER BY ?datePublished
+        `;
+        axios.post(ENDPOINT_URL, buildQueryBody(query))
+          .then(response => {
+            this.items = response.data.results.bindings;
+          })
+          .catch(error => {
+            console.log(error);
+            alert('エラーが発生しました');
+          })
+          .finally(() => {
+            this.messageWhenNoItems = '';
+          });
+      },
+      queryCollection: function (collectionId) {
+        const query = `
+            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+            PREFIX schema: <https://schema.org/>
+            SELECT ?genre ?label WHERE {
+              <https://mediaarts-db.bunka.go.jp/id/${collectionId}>
+                schema:genre ?genre ;
+                rdfs:label ?label .
+            }
+        `;
+        axios.post(ENDPOINT_URL, buildQueryBody(query))
+          .then(response => {
+            if (response.data.results.bindings.length === 1) {
+              this.collectionGenre = response.data.results.bindings[0].genre.value;
+              this.collectionLabel = response.data.results.bindings[0].label.value;
+            } else {
+              this.collectionGenre = null;
+              this.collectionLabel = null;
+            }
+          })
+          .catch(error => {
+            console.log(error);
+            alert('エラーが発生しました');
+          });
+      },
+      getIconClass: function (value) {
+        return {
+          'bi': true,
+          'bi-check-circle-fill': value === 'true',
+          'bi-dash': value === 'false',
+        };
+      },
+      downloadCsv: function () {
+        const rows = [
+          // header
+          ['URL',
+            'ID',
+            'ラベル',
+            'ISBN',
+            '国立国会図書館_登録番号',
+            '明治大学米沢嘉博記念図書館_登録番号',
+            '京都国際マンガミュージアム_登録番号',
+            '大阪府立中央図書館国際児童文学館_登録番号',
+            '熊本県菊陽町図書館_登録番号',
+            '北九州市漫画ミュージアム_登録番号',
+            'プランゲ文庫_登録番号',
+          ].join(',')
+        ];
+        this.items.forEach(item => {
+          const row = [
+            item.item.value,
+            item.itemId.value,
+            item.label.value,
+            item.isbn ? item.isbn.value : '',
+            item.国立国会図書館_ids ? item.国立国会図書館_ids.value : '',
+            item.明治大学米沢嘉博記念図書館_ids ? item.明治大学米沢嘉博記念図書館_ids.value : '',
+            item.京都国際マンガミュージアム_ids ? item.京都国際マンガミュージアム_ids.value : '',
+            item.大阪府立中央図書館国際児童文学館_ids ? item.大阪府立中央図書館国際児童文学館_ids.value : '',
+            item.熊本県菊陽町図書館_ids ? item.熊本県菊陽町図書館_ids.value : '',
+            item.北九州市漫画ミュージアム_ids ? item.北九州市漫画ミュージアム_ids.value : '',
+            item.プランゲ文庫_ids ? item.プランゲ文庫_ids.value : '',
+          ];
+          rows.push(row.map(elm => '"' + elm + '"').join(','))
+        })
+
+        try {
+          const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+          const blob = new Blob([bom, rows.join('\n')], {type: 'text/csv'});
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = objectUrl;
+          a.download = this.collectionId + '_providers.csv';
+          document.body.appendChild(a);
+          a.click();
+          URL.revokeObjectURL(objectUrl);
+          a.remove();
+        } catch (e) {
+          alert('エラーが発生しました (お使いのWebブラウザが非対応の可能性があります');
+        }
+      }
+    }
+  })
+</script>
+</body>
+</html>
