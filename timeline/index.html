@@ -104,10 +104,11 @@
             WHERE {
               ?item a class:Item ;
                  schema:genre ?genre ;
-                 dcterms:creator <https://mediaarts-db.bunka.go.jp/id/${this.agentId}> ;
+                 dcterms:creator ?dccreator ;
                  rdfs:label ?label ;
                  schema:datePublished ?datePublished .
                  OPTIONAL { ?item schema:publisher ?publisher . }
+                 FILTER(CONTAINS(str(?dccreator), '${this.agentId}'))
             }
         `;
         this.messageWhenNoItems = 'データを取得中です...';
