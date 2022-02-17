@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -135,8 +134,8 @@
         const query = `
             PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
             PREFIX schema: <https://schema.org/>
-            PREFIX ma:     <https://mediaarts-db.bunka.go.jp/data/property/>
-            PREFIX class:  <https://mediaarts-db.bunka.go.jp/data/class/>
+            PREFIX ma:     <https://mediaarts-db.bunka.go.jp/data/property#>
+            PREFIX class:  <https://mediaarts-db.bunka.go.jp/data/class#>
             SELECT
               ?item ?itemId ?label ?isbn ?datePublished
               ?国立国会図書館 ?明治大学米沢嘉博記念図書館 ?京都国際マンガミュージアム ?大阪府立中央図書館国際児童文学館 ?熊本県菊陽町図書館 ?北九州市漫画ミュージアム ?プランゲ文庫
@@ -148,14 +147,12 @@
               (GROUP_CONCAT(DISTINCT ?北九州市漫画ミュージアム_id ; separator="|") AS ?北九州市漫画ミュージアム_ids)
               (GROUP_CONCAT(DISTINCT ?プランゲ文庫_id ; separator="|") AS ?プランゲ文庫_ids)
             WHERE {
-              ?col a class:Collection ;
-                   schema:identifier "${this.collectionId}" .
-              ?item a class:Item ;
-                    schema:genre ?genre ;
+              ?col schema:identifier "${this.collectionId}" .
+              ?item schema:genre ?genre ;
                     rdfs:label ?label ;
                     schema:identifier ?itemId ;
                     schema:isPartOf ?col .
-              VALUES ?genre {"単行本" "雑誌巻号" "マンガその他"}
+              VALUES ?genre {"マンガ単行本" "マンガ雑誌単号" "マンガその他"}
 
               OPTIONAL { ?item schema:datePublished ?datePublished }
               OPTIONAL { ?item schema:isbn ?isbn }
@@ -186,7 +183,7 @@
           })
           .catch(error => {
             console.log(error);
-            alert('エラーが発生しました');
+            alert('連携機関情報の取得に失敗しました');
           })
           .finally(() => {
             this.messageWhenNoItems = '';
