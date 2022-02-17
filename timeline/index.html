@@ -97,18 +97,18 @@
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
             PREFIX schema: <https://schema.org/>
             PREFIX dcterms: <http://purl.org/dc/terms/>
-            PREFIX class: <https://mediaarts-db.bunka.go.jp/data/class/>
-            PREFIX ma: <https://mediaarts-db.bunka.go.jp/data/property/>
+            PREFIX class: <https://mediaarts-db.bunka.go.jp/data/class#>
+            PREFIX ma: <https://mediaarts-db.bunka.go.jp/data/property#>
             SELECT
               *
             WHERE {
-              ?item a class:Item ;
-                 schema:genre ?genre ;
-                 dcterms:creator ?dccreator ;
+              ?item schema:genre ?genre ;
+                 dcterms:creator ?creator ;
                  rdfs:label ?label ;
                  schema:datePublished ?datePublished .
-                 OPTIONAL { ?item schema:publisher ?publisher . }
-                 FILTER(CONTAINS(str(?dccreator), '${this.agentId}'))
+              VALUES ?genre {"マンガ単行本" "マンガ雑誌単号" "マンガその他"}
+              OPTIONAL { ?item schema:publisher ?publisher . }
+              FILTER (REGEX(STR(?creator), '${this.agentId}(,|$)'))
             }
         `;
         this.messageWhenNoItems = 'データを取得中です...';
