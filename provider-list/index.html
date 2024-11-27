@@ -96,7 +96,7 @@
     </div>
 </div>
 <script>
-  const ENDPOINT_URL = 'https://mediag.bunka.go.jp/sparql';
+  const ENDPOINT_URL = 'https://mediaarts-db.artmuseums.go.jp/sparql';
 
   function buildQueryBody(query) {
     const params = new URLSearchParams();
@@ -114,7 +114,7 @@
     },
     computed: {
       collectionUrl: function () {
-        return 'https://mediaarts-db.bunka.go.jp/id/' + this.collectionId;
+        return 'https://mediaarts-db.artmuseums.go.jp/id/' + this.collectionId;
       }
     },
     methods: {
@@ -134,8 +134,8 @@
         const query = `
             PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
             PREFIX schema: <https://schema.org/>
-            PREFIX ma:     <https://mediaarts-db.bunka.go.jp/data/property#>
-            PREFIX class:  <https://mediaarts-db.bunka.go.jp/data/class#>
+            PREFIX ma:     <https://mediaarts-db.artmuseums.go.jp/data/property#>
+            PREFIX class:  <https://mediaarts-db.artmuseums.go.jp/data/class#>
             SELECT
               ?item ?itemId ?label ?isbn ?datePublished
               ?国立国会図書館 ?明治大学米沢嘉博記念図書館 ?京都国際マンガミュージアム ?大阪府立中央図書館国際児童文学館 ?熊本県菊陽町図書館 ?北九州市漫画ミュージアム ?プランゲ文庫
@@ -194,7 +194,7 @@
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
             PREFIX schema: <https://schema.org/>
             SELECT ?genre ?label WHERE {
-              <https://mediaarts-db.bunka.go.jp/id/${collectionId}>
+              <https://mediaarts-db.artmuseums.go.jp/id/${collectionId}>
                 schema:genre ?genre ;
                 rdfs:label ?label .
             }
